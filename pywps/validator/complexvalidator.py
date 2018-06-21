@@ -218,11 +218,11 @@ def validategeotiff(data_input, mode):
 
     if mode >= MODE.STRICT:
 
-        from pywps.dependencies import gdal
-        data_source = gdal.Open(data_input.file)
-        if data_source:
+        try:
+            from pywps.dependencies import gdal
+            data_source = gdal.Open(data_input.file)
             passed = (data_source.GetDriver().ShortName == "GTiff")
-        else:
+        except ImportError:
             passed = False
 
     return passed
@@ -250,7 +250,7 @@ def validatenetcdf(data_input, mode):
             from pywps.dependencies import netCDF4 as nc
             nc.Dataset(data_input.file)
             passed = True
-        except:
+        except ImportError:
             passed = False
 
     return passed

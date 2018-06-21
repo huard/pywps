@@ -8,7 +8,8 @@
 
 
 import logging
-from pywps.validator.complexvalidator import validategml, validateshapefile, validategeojson, validategeotiff, validatenetcdf
+from pywps.validator.complexvalidator import validategml, validateshapefile, validategeojson, validategeotiff, \
+    validatenetcdf
 from pywps.validator.base import emptyvalidator
 
 LOGGER = logging.getLogger('PYWPS')

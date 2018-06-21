@@ -10,10 +10,10 @@ try:
     from osgeo import gdal, ogr
 except ImportError as err:
     warnings.warn('Complex validation requires GDAL/OGR support.')
-    #raise NoApplicableCode('Complex validation requires GDAL/OGR support.')
+    # raise NoApplicableCode('Complex validation requires GDAL/OGR support.')
 
 try:
     import netCDF4
 except ImportError as err:
     warnings.warn('Complex validation requires netCDF4 support.')
-    #raise NoApplicableCode('Complex validation requires netCDF4 support.')
+    # raise NoApplicableCode('Complex validation requires netCDF4 support.')
