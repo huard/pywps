@@ -196,6 +196,7 @@ class Service(object):
                 workdir=complexinput.workdir,
                 extension=_extension(complexinput))
 
+            reference_file = _openurl(datain)
             try:
                 reference_file = _openurl(datain)
                 data_size = reference_file.headers.get('Content-Length', 0)
@@ -215,8 +216,9 @@ class Service(object):
                                        ' Maximum allowed: %i megabytes' %
                                        complexinput.max_size, complexinput.identifier)
 
-            if datain['mimeType'] in ['application/x-ogc-dods',]:
-                complexinput.file = datain.get('href')
+            if complexinput.data_format.mime_type in ['application/x-ogc-dods',]:
+                # Skip the download
+                complexinput.data = datain.get('href')
 
             else:
                 try:

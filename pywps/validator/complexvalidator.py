@@ -248,7 +248,7 @@ def validatenetcdf(data_input, mode):
 
         try:
             from pywps.dependencies import netCDF4 as nc
-            nc.Dataset(data_input.file)
+            nc.Dataset(data_input.data)
             passed = True
         except ImportError:
             passed = False
