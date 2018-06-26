@@ -183,6 +183,7 @@ FORMATS = _FORMATS(
     Format('application/gml+xml', extension='.gml'),
     Format('image/tiff; subtype=geotiff', extension='.tiff'),
     Format('application/xogc-wcs', extension='.xml'),
+    Format('application/x-ogc‐dods', extension='.nc'),
     Format('application/x-ogc-wcs; version=1.0.0', extension='.xml'),
     Format('application/x-ogc-wcs; version=1.1.0', extension='.xml'),
     Format('application/x-ogc-wcs; version=2.0', extension='.xml'),

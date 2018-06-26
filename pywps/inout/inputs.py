@@ -151,6 +151,7 @@ class ComplexInput(basic.ComplexInput):
 
         basic.ComplexInput.__init__(self, identifier=identifier, title=title,
                                     abstract=abstract, keywords=keywords,
+                                    data_format=data_format,
                                     supported_formats=supported_formats,
                                     mode=mode,
                                     default=default, default_type=default_type)
