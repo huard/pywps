@@ -215,20 +215,25 @@ class Service(object):
                                        ' Maximum allowed: %i megabytes' %
                                        complexinput.max_size, complexinput.identifier)
 
-            try:
-                with open(tmp_file, 'wb') as f:
-                    data_size = 0
-                    for chunk in reference_file.iter_content(chunk_size=1024):
-                        data_size += len(chunk)
-                        if int(data_size) > int(max_byte_size):
-                            raise FileSizeExceeded('File size for input exceeded.'
-                                                   ' Maximum allowed: %i megabytes' %
-                                                   complexinput.max_size, complexinput.identifier)
-                        f.write(chunk)
-            except Exception as e:
-                raise NoApplicableCode(e)
+            if datain['mimeType'] in ['application/x-ogc-dods',]:
+                complexinput.file = datain.get('href')
 
-            complexinput.file = tmp_file
+            else:
+                try:
+                    with open(tmp_file, 'wb') as f:
+                        data_size = 0
+                        for chunk in reference_file.iter_content(chunk_size=1024):
+                            data_size += len(chunk)
+                            if int(data_size) > int(max_byte_size):
+                                raise FileSizeExceeded('File size for input exceeded.'
+                                                       ' Maximum allowed: %i megabytes' %
+                                                       complexinput.max_size, complexinput.identifier)
+                            f.write(chunk)
+                except Exception as e:
+                    raise NoApplicableCode(e)
+
+                complexinput.file = tmp_file
+
             complexinput.url = datain.get('href')
             complexinput.as_reference = True
 
