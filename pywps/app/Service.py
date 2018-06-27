@@ -196,7 +196,6 @@ class Service(object):
                 workdir=complexinput.workdir,
                 extension=_extension(complexinput))
 
-            reference_file = _openurl(datain)
             try:
                 reference_file = _openurl(datain)
                 data_size = reference_file.headers.get('Content-Length', 0)
@@ -279,7 +278,10 @@ class Service(object):
 
     def create_complex_inputs(self, source, inputs):
         """Create new ComplexInput as clone of original ComplexInput
-        because of inputs can be more then one, take it just as Prototype
+        because of inputs can be more then one, take it just as Prototype.
+
+        :param source: The process's input definition.
+        :param inputs: The request input data.
         :return collections.deque:
         """
 

@@ -144,9 +144,7 @@ class ExecuteTest(unittest.TestCase):
             raw=True
             inputs = {'dods': [{
                     'identifier': 'dods',
-                    #'mimeType': 'application/x-ogc-dods',
                     'href': "http://test.opendap.org:80/opendap/netcdf/examples/sresa1b_ncar_ccsm3_0_run1_200001.nc",
-                    'as_reference':True,
                 }]}
             store_execute = False
             lineage=False
