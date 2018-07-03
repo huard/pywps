@@ -7,6 +7,8 @@ from pywps._compat import text_type, StringIO
 import os
 import requests
 import tempfile
+import logging
+import pywps.configuration as config
 from pywps.inout.literaltypes import (LITERAL_DATA_TYPES, convert,
                                       make_allowedvalues, is_anyvalue)
 from pywps import get_ElementMakerForVersion, OGCUNIT, NAMESPACES
@@ -15,8 +17,9 @@ from pywps.validator.base import emptyvalidator
 from pywps.validator import get_validator
 from pywps.validator.literalvalidator import (validate_anyvalue,
                                               validate_allowed_values)
-from pywps.exceptions import InvalidParameterValue
-from pywps._compat import PY2
+from pywps.exceptions import InvalidParameterValue, FileURLNotSupported
+
+from pywps._compat import PY2, urlparse
 import base64
 from collections import namedtuple
 from io import BytesIO
@@ -24,6 +27,7 @@ from io import BytesIO
 _SOURCE_TYPE = namedtuple('SOURCE_TYPE', 'MEMORY, FILE, STREAM, DATA, URL')
 SOURCE_TYPE = _SOURCE_TYPE(0, 1, 2, 3, 4)
 
+LOGGER = logging.getLogger("PYWPS")
 
 def _is_textfile(filename):
     try:
@@ -387,6 +391,12 @@ class IOHandler(object):
     def source_type(self):
         return getattr(SOURCE_TYPE, self.prop.upper())
 
+    def _extension(self):
+        extension = None
+        if getattr(self, data_format):
+            extension = self.data_format.extension
+        return extension
+
     def _create_fset_properties(self):
         """Create properties that when set for the first time, will determine
         the instance's handler class.
@@ -428,9 +438,9 @@ class FileHandler(IOHandler):
         return self._filename
 
     @file.setter
-    def file(self, filename):
+    def file(self, value):
         """Set file name"""
-        self._filename = os.path.abspath(filename)
+        self._filename = os.path.abspath(value)
         self._check_valid()
 
     @property
@@ -496,6 +506,95 @@ class FileHandler(IOHandler):
             if not checked and not _is_textfile(self.source):
                 openmode += 'b'
         return openmode
+
+    @staticmethod
+    def _validate_file_input(href):
+        href = href or ''
+        parsed_url = urlparse(href)
+        if parsed_url.scheme != 'file':
+            raise FileURLNotSupported('Invalid URL scheme')
+        file_path = parsed_url.path
+        if not file_path:
+            raise FileURLNotSupported('Invalid URL path')
+        file_path = os.path.abspath(file_path)
+        # build allowed paths list
+        inputpaths = config.get_config_value('server', 'allowedinputpaths')
+        allowed_paths = [os.path.abspath(p.strip()) for p in inputpaths.split(':') if p.strip()]
+        for allowed_path in allowed_paths:
+            if file_path.startswith(allowed_path):
+                LOGGER.debug("Accepted file url as input.")
+                return
+        raise FileURLNotSupported()
+
+
+class UrlHandler(FileHandler):
+    prop = 'url'
+
+    @property
+    def url(self):
+        """Return the URL."""
+        return self._url
+
+    @url.setter
+    def url(self, value):
+        """Set the URL value."""
+        self._url = value
+        self._check_valid()
+        self._filename = self._build_input_file_name(
+            href=value,
+            workdir=self.workdir,
+            extension=self._extension())
+
+    @property
+    def stream(self):
+        """Return the stream."""
+        return requests.get(self.url, stream=True)
+
+    @property
+    def data(self):
+        return self.stream.read()
+
+    @property
+    def file(self):
+        return self._filename
+
+    @staticmethod
+    def _build_input_file_name(href, workdir, extension=None):
+        href = href or ''
+        url_path = urlparse(href).path or ''
+        file_name = os.path.basename(url_path).strip() or 'input'
+        (prefix, suffix) = os.path.splitext(file_name)
+        suffix = suffix or extension or ''
+        if prefix and suffix:
+            file_name = prefix + suffix
+        input_file_name = os.path.join(workdir, file_name)
+        # build tempfile in case of duplicates
+        if os.path.exists(input_file_name):
+            input_file_name = tempfile.mkstemp(
+                suffix=suffix, prefix=prefix + '_',
+                dir=workdir)[1]
+        return input_file_name
+
+    @staticmethod
+    def _openurl(inpt):
+        """use requests to open given href
+        """
+        data = None
+        reference_file = None
+        href = inpt.get('href')
+
+        LOGGER.debug('Fetching URL %s', href)
+        if inpt.get('method') == 'POST':
+            if 'body' in inpt:
+                data = inpt.get('body')
+            elif 'bodyreference' in inpt:
+                data = requests.get(url=inpt.get('bodyreference')).text
+
+            reference_file = requests.post(url=href, data=data, stream=True)
+        else:
+            reference_file = requests.get(url=href, stream=True)
+
+        return reference_file
 
 
 class DataHandler(FileHandler):
@@ -595,24 +694,6 @@ class StreamHandler(DataHandler):
         return self.stream.read()
 
 
-class UrlHandler(StreamHandler):
-    prop = 'url'
-
-    @property
-    def url(self):
-        """Return the URL."""
-        return self._url
-
-    @url.setter
-    def url(self, value):
-        """Set the URL value."""
-        self._url = value
-        self._check_valid()
-
-    @property
-    def stream(self):
-        """Return the stream."""
-        return requests.get(self.url, stream=True)
 
 
 class LiteralHandler(DataHandler):
@@ -997,7 +1078,7 @@ class ComplexInput(BasicIO, BasicComplex, IOHandler):
         }
 
 
-class ComplexOutput(BasicIO, BasicComplex, UrlHandler):
+class ComplexOutput(BasicIO, BasicComplex, IOHandler):
     """Complex output abstract class
 
     >>> # temporary configuration
@@ -1029,7 +1110,7 @@ class ComplexOutput(BasicIO, BasicComplex, UrlHandler):
                  workdir=None, data_format=None, supported_formats=None,
                  mode=MODE.NONE):
         BasicIO.__init__(self, identifier, title, abstract, keywords)
-        FileHandler.__init__(self, workdir=workdir, mode=mode)
+        IOHandler.__init__(self, workdir=workdir, mode=mode)
         BasicComplex.__init__(self, data_format, supported_formats)
 
         self._storage = None

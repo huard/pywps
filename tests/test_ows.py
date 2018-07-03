@@ -68,7 +68,6 @@ def create_feature():
                    inputs=[ComplexInput('input', 'Input', supported_formats=[get_format('GML')])],
                    outputs=[ComplexOutput('output', 'Output', supported_formats=[get_format('GML')])])
 
-
 def create_sum_one():
 
     def sum_one(request, response):
