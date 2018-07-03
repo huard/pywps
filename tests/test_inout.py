@@ -116,6 +116,13 @@ class IOHandlerTest(unittest.TestCase):
         self.iohandler.file = source
         self._test_outout(SOURCE_TYPE.FILE)
 
+    def test_url(self):
+        wfsResource = 'http://demo.mapserver.org/cgi-bin/wfs?service=WFS&version=1.1.0&request=GetFeature&typename=continents&maxfeatures=10'  # noqa
+        self.iohandler = IOHandler(workdir=self.tmp_dir)
+        self.iohandler.url = wfsResource
+
+
+
     def test_workdir(self):
         """Test workdir"""
         workdir = tempfile.mkdtemp()

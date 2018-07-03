@@ -3,6 +3,7 @@
 # licensed under MIT, Please consult LICENSE.txt for details     #
 ##################################################################
 
+from __future__ import absolute_import
 import logging
 import tempfile
 from werkzeug.exceptions import HTTPException
@@ -19,6 +20,7 @@ from pywps.exceptions import MissingParameterValue, NoApplicableCode, InvalidPar
 from pywps.inout.inputs import ComplexInput, LiteralInput, BoundingBoxInput
 from pywps.dblog import log_request, update_response
 from pywps import response
+
 
 from collections import deque, OrderedDict
 import os
@@ -446,11 +448,12 @@ class Service(object):
 def _openurl(inpt):
     """use requests to open given href
     """
+    r = requests
     data = None
-    reference_file = None
+    met = dir(requests)
     href = inpt.get('href')
-
     LOGGER.debug('Fetching URL %s', href)
+
     if inpt.get('method') == 'POST':
         if 'body' in inpt:
             data = inpt.get('body')

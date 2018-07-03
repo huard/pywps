@@ -393,7 +393,7 @@ class IOHandler(object):
 
     def _extension(self):
         extension = None
-        if getattr(self, data_format):
+        if getattr(self, 'data_format', None):
             extension = self.data_format.extension
         return extension
 
@@ -475,17 +475,17 @@ class FileHandler(IOHandler):
         import pathlib
         return pathlib.PurePosixPath(self._filename).as_uri()
 
-    @property
-    def default(self):
-        try:
-            return getattr(self. self.prop)
-        except AttributeError:
-            return None
-
-    @default.setter
-    def default(self, value):
-        if value is not None:
-            setattr(self, self.prop, value)
+    # @property
+    # def default(self):
+    #     try:
+    #         return getattr(self. self.prop)
+    #     except AttributeError:
+    #         return None
+    #
+    # @default.setter
+    # def default(self, value):
+    #     if value is not None:
+    #         setattr(self, self.prop, value)
 
 
     def _openmode(self):
@@ -569,10 +569,10 @@ class UrlHandler(FileHandler):
             file_name = prefix + suffix
         input_file_name = os.path.join(workdir, file_name)
         # build tempfile in case of duplicates
-        if os.path.exists(input_file_name):
-            input_file_name = tempfile.mkstemp(
-                suffix=suffix, prefix=prefix + '_',
-                dir=workdir)[1]
+        #if os.path.exists(input_file_name):
+        #    input_file_name = tempfile.mkstemp(
+        #        suffix=suffix, prefix=prefix + '_',
+        #        dir=workdir)[1]
         return input_file_name
 
     @staticmethod
@@ -620,7 +620,7 @@ class DataHandler(FileHandler):
     @property
     def data(self):
         """Return data."""
-        return self._data
+        return getattr(self, '_data', None)
 
     @data.setter
     def data(self, value):
@@ -894,7 +894,8 @@ class LiteralInput(BasicIO, BasicLiteral, LiteralHandler):
         if not self.any_value:
             self.allowed_values = make_allowedvalues(allowed_values)
 
-        self.data = default
+        if default is not None:
+            self.data = default
 
     @property
     def validator(self):
