@@ -5,6 +5,7 @@
 
 from pywps._compat import text_type, StringIO
 import os
+import requests
 import tempfile
 from pywps.inout.literaltypes import (LITERAL_DATA_TYPES, convert,
                                       make_allowedvalues, is_anyvalue)
@@ -20,8 +21,8 @@ import base64
 from collections import namedtuple
 from io import BytesIO
 
-_SOURCE_TYPE = namedtuple('SOURCE_TYPE', 'MEMORY, FILE, STREAM, DATA')
-SOURCE_TYPE = _SOURCE_TYPE(0, 1, 2, 3)
+_SOURCE_TYPE = namedtuple('SOURCE_TYPE', 'MEMORY, FILE, STREAM, DATA, URL')
+SOURCE_TYPE = _SOURCE_TYPE(0, 1, 2, 3, 4)
 
 
 def _is_textfile(filename):
@@ -52,8 +53,7 @@ class UOM(object):
         return {"reference": OGCUNIT[self.uom],
                 "uom": self.uom}
 
-
-class IOHandler(object):
+class IOHandlerOld(object):
     """Basic IO class. Provides functions, to accept input data in file,
     memory object and stream object and give them out in all three types
 
@@ -151,6 +151,12 @@ class IOHandler(object):
         self.source = data
         self._check_valid()
 
+    def set_url(self, url):
+        """Set source as a url."""
+        self.source_type = SOURCE_TYPE.URL
+        self.source = url
+        self._check_valid(self)
+
     def set_base64(self, data):
         """Set data encoded in base64"""
 
@@ -162,7 +168,7 @@ class IOHandler(object):
         if self.source_type == SOURCE_TYPE.FILE:
             return self.source
 
-        elif self.source_type == SOURCE_TYPE.STREAM or self.source_type == SOURCE_TYPE.DATA:
+        elif self.source_type in [SOURCE_TYPE.STREAM, SOURCE_TYPE.DATA, SOURCE_TYPE.URL]:
             if self._tempfile:
                 return self._tempfile
             else:
@@ -180,6 +186,8 @@ class IOHandler(object):
 
                 if self.source_type == SOURCE_TYPE.STREAM:
                     stream_file.write(self.source.read())
+                elif self.source_type == SOURCE_TYPE.URL:
+                    stream_file.write(requests.get(url=self.source, stream=True))
                 else:
                     stream_file.write(self.source)
 
@@ -199,14 +207,19 @@ class IOHandler(object):
 
     def get_stream(self):
         """Get source as stream object"""
-        if self.source_type == SOURCE_TYPE.FILE:
+        if self.source_type in [SOURCE_TYPE.FILE, SOURCE_TYPE.URL]:
             if self._stream and not self._stream.closed:
                 self._stream.close()
-            from io import FileIO
-            self._stream = FileIO(self.source, mode='r', closefd=True)
+            if self.source_type == SOURCE_TYPE.FILE:
+                from io import FileIO
+                self._stream = FileIO(self.source, mode='r', closefd=True)
+            elif self.source_type == SOURCE_TYPE.URL:
+                self._stream = requests.get(url=self.source, stream=True)
             return self._stream
+
         elif self.source_type == SOURCE_TYPE.STREAM:
             return self.source
+
         elif self.source_type == SOURCE_TYPE.DATA:
             if not PY2 and isinstance(self.source, bytes):
                 return BytesIO(self.source)
@@ -281,7 +294,328 @@ class IOHandler(object):
                 self.stream = value
 
 
-class SimpleHandler(IOHandler):
+class IOHandler(object):
+    """Basic IO class. Provides functions, to accept input data in file,
+    memory object and stream object and give them out in all three types
+
+    :param workdir: working directory, to save temporal file objects in
+    :param mode: ``MODE`` validation mode
+
+
+    >>> # setting up
+    >>> import os
+    >>> from io import RawIOBase
+    >>> from io import FileIO
+    >>> import types
+    >>>
+    >>> ioh_file = IOHandler(workdir=tmp)
+    >>> assert isinstance(ioh_file, IOHandler)
+    >>>
+    >>> # Create test file input
+    >>> fileobj = open(os.path.join(tmp, 'myfile.txt'), 'w')
+    >>> fileobj.write('ASDF ASFADSF ASF ASF ASDF ASFASF')
+    >>> fileobj.close()
+    >>>
+    >>> # testing file object on input
+    >>> ioh_file.file = fileobj.name
+    >>> assert ioh_file.source_type == SOURCE_TYPE.FILE
+    >>> file = ioh_file.file
+    >>> stream = ioh_file.stream
+    >>>
+    >>> assert file == fileobj.name
+    >>> assert isinstance(stream, RawIOBase)
+    >>> # skipped assert isinstance(ioh_file.memory_object, POSH)
+    >>>
+    >>> # testing stream object on input
+    >>> ioh_stream = IOHandler(workdir=tmp)
+    >>> assert ioh_stream.workdir == tmp
+    >>> ioh_stream.stream = FileIO(fileobj.name,'r')
+    >>> assert ioh_stream.source_type == SOURCE_TYPE.STREAM
+    >>> file = ioh_stream.file
+    >>> stream = ioh_stream.stream
+    >>>
+    >>> assert open(file).read() == ioh_file.stream.read()
+    >>> assert isinstance(stream, RawIOBase)
+    """
+
+    def __init__(self, workdir=None, mode=MODE.NONE):
+        self.workdir = workdir
+        self.valid_mode = mode
+
+        self._tempfile = None
+        self.uuid = None  # request identifier
+        self.data_set = False
+
+        self._create_fset_properties()
+
+    def _check_valid(self):
+        """Validate this input using given validator
+        """
+
+        validate = self.validator
+        _valid = validate(self, self.valid_mode)
+        if not _valid:
+            self.data_set = False
+            raise InvalidParameterValue('Input data not valid using '
+                                        'mode %s' % (self.valid_mode))
+        self.data_set = True
+
+    @property
+    def workdir(self):
+        return self._workdir
+
+    @workdir.setter
+    def workdir(self, path):
+        """Set working temporary directory for files to be stored in."""
+        if path is not None:
+            if not os.path.exists(path):
+                os.makedirs(path)
+
+        self._workdir = path
+
+    @property
+    def validator(self):
+        """Return the function suitable for validation
+        This method should be overridden by class children
+
+        :return: validating function
+        """
+
+        return emptyvalidator
+
+    @property
+    def source_type(self):
+        return getattr(SOURCE_TYPE, self.prop.upper())
+
+    def _create_fset_properties(self):
+        """Create properties that when set for the first time, will determine
+        the instance's handler class.
+
+        Example
+        -------
+        >>> h = IOHandler()
+        >>> isinstance(h, DataHandler)
+        False
+        >>> h.data = 1 # Mixes the DataHandler class to IOHandler. h inherits DataHandler methods.
+        >>> isinstance(h, DataHandler)
+        True
+        """
+        for cls in (FileHandler, DataHandler, StreamHandler, UrlHandler):
+            def fget(self):
+                return None
+
+            def fset(self, value, cls=cls):
+                """Assign the handler class and set the value to the attribute.
+
+                This function will only be called once. The next `fset` will
+                use the subclass' property.
+                """
+                # Add cls methods to this instance.
+                extend_instance(self, cls)
+
+                # Set the attribute value through the associated cls property.
+                setattr(self, cls.prop, value)
+
+            setattr(IOHandler, cls.prop, property(fget=fget, fset=fset))
+
+
+class FileHandler(IOHandler):
+    prop = 'file'
+
+    @property
+    def file(self):
+        """Return filename."""
+        return self._filename
+
+    @file.setter
+    def file(self, filename):
+        """Set file name"""
+        self._filename = os.path.abspath(filename)
+        self._check_valid()
+
+    @property
+    def data(self):
+        """Read file and return content."""
+        with open(self._filename, mode=self._openmode()) as fh:
+            return fh.read()
+
+    @property
+    def base64(self):
+        """Return base64 encoding of data."""
+        return base64.b64encode(self.data)
+
+    @property
+    def stream(self):
+        """Return stream object."""
+        from io import FileIO
+        if getattr(self, '_stream', None) and not self._stream.closed:
+            self._stream.close()
+
+        self._stream = FileIO(self.file, mode='r', closefd=True)
+        return self._stream
+
+    @property
+    def mem(self):
+        """Return memory object."""
+        raise NotImplementedError
+
+    @property
+    def url(self):
+        """Return url to file."""
+        import pathlib
+        return pathlib.PurePosixPath(self._filename).as_uri()
+
+    @property
+    def default(self):
+        try:
+            return getattr(self. self.prop)
+        except AttributeError:
+            return None
+
+    @default.setter
+    def default(self, value):
+        if value is not None:
+            setattr(self, self.prop, value)
+
+
+    def _openmode(self):
+        openmode = 'r'
+        if not PY2:
+            # in Python 3 we need to open binary files in binary mode.
+            checked = False
+            if hasattr(self, 'data_format'):
+                if self.data_format.encoding == 'base64':
+                    # binary, when the data is to be encoded to base64
+                    openmode += 'b'
+                    checked = True
+                elif 'text/' in self.data_format.mime_type:
+                    # not binary, when mime_type is 'text/'
+                    checked = True
+            # when we can't guess it from the mime_type, we need to check the file.
+            # mimetypes like application/xml and application/json are text files too.
+            if not checked and not _is_textfile(self.source):
+                openmode += 'b'
+        return openmode
+
+
+class DataHandler(FileHandler):
+    prop = 'data'
+
+    def _mkstemp(self):
+        """Return temporary file name."""
+        suffix = ''
+        if hasattr(self, 'data_format') and self.data_format.extension:
+            suffix = self.data_format.extension
+        (opening, fn) = tempfile.mkstemp(dir=self.workdir, suffix=suffix)
+        return fn
+
+    @staticmethod
+    def _openmode(data):
+        openmode = 'w'
+        if not PY2 and isinstance(data, bytes):
+            # on Python 3 open the file in binary mode if the source is
+            # bytes, which happens when the data was base64-decoded
+            openmode += 'b'
+        return openmode
+
+    @property
+    def data(self):
+        """Return data."""
+        return self._data
+
+    @data.setter
+    def data(self, value):
+        self._data = value
+        self._check_valid()
+
+    @property
+    def file(self):
+        """Return file name storing the data.
+
+        Requesting the file attributes writes the data to a temporary file on disk.
+        """
+        if self._tempfile:
+            return self._tempfile
+        else:
+            fn = self._mkstemp()
+            data = self.data
+            with open(fn, self._openmode(data)) as fh:
+                fh.write(data)
+
+            self._tempfile = str(fn)
+            return self._tempfile
+
+    @property
+    def stream(self):
+        if not PY2 and isinstance(self.data, bytes):
+            return BytesIO(self.data)
+        else:
+            return StringIO(text_type(self.data))
+
+    @property
+    def url(self):
+        import pathlib
+        return pathlib.PurePosixPath(self.file).as_uri()
+
+
+class Base64Handler(DataHandler):
+    prop = 'base64'
+
+    @property
+    def base64(self):
+        """Get data encoded in base64."""
+        return base64.b64encode(self.data)
+
+
+    @base64.setter
+    def base64(self, value):
+        """Set data encoded in base64"""
+
+        self.data = base64.b64decode(value)
+        self._check_valid()
+
+
+class StreamHandler(DataHandler):
+    prop = 'stream'
+
+    @property
+    def stream(self):
+        """Return the stream."""
+        return self._stream
+
+    @stream.setter
+    def stream(self, value):
+        """Set the stream."""
+        self._stream = value
+        self._check_valid()
+
+    @property
+    def data(self):
+        """Return the data from the stream."""
+        return self.stream.read()
+
+
+class UrlHandler(StreamHandler):
+    prop = 'url'
+
+    @property
+    def url(self):
+        """Return the URL."""
+        return self._url
+
+    @url.setter
+    def url(self, value):
+        """Set the URL value."""
+        self._url = value
+        self._check_valid()
+
+    @property
+    def stream(self):
+        """Return the stream."""
+        return requests.get(self.url, stream=True)
+
+
+class LiteralHandler(DataHandler):
     """Data handler for Literal In- and Outputs
 
     >>> class Int_type(object):
@@ -303,23 +637,20 @@ class SimpleHandler(IOHandler):
     False
     """
 
-    def __init__(self, workdir=None, data_type=None, mode=MODE.NONE):
-        IOHandler.__init__(self, workdir=workdir, mode=mode)
+    def __init__(self, workdir=None, data_type='integer', mode=MODE.NONE):
+        DataHandler.__init__(self, workdir=workdir, mode=mode)
+        if data_type not in LITERAL_DATA_TYPES:
+            raise ValueError('data_type {} not in {}'.format(data_type, LITERAL_DATA_TYPES) )
         self.data_type = data_type
 
-    def get_data(self):
-        return IOHandler.get_data(self)
-
-    def set_data(self, data):
-        """Set data value. input data are converted into target format
+    @DataHandler.data.setter
+    def data(self, value):
+        """Set data value. Inputs are converted into target format.
         """
+        if self.data_type and value is not None:
+            value = convert(self.data_type, value)
 
-        if self.data_type:
-            data = convert(self.data_type, data)
-
-        IOHandler.set_data(self, data)
-
-    data = property(fget=get_data, fset=set_data)
+        DataHandler.data.fset(self, value)
 
 
 class BasicIO:
@@ -340,9 +671,7 @@ class BasicLiteral:
     """Basic literal Input/Output class
     """
 
-    def __init__(self, data_type="integer", uoms=None):
-        assert data_type in LITERAL_DATA_TYPES
-        self.data_type = data_type
+    def __init__(self, uoms=None):
         # list of uoms
         self.uoms = []
         # current uom
@@ -375,7 +704,7 @@ class BasicComplex(object):
     """
 
     def __init__(self, data_format=None, supported_formats=None):
-        self._data_format = None
+        self._data_format = data_format
         self._supported_formats = None
         if supported_formats:
             self.supported_formats = supported_formats
@@ -462,7 +791,7 @@ class BasicBoundingBox(object):
         self.ur = []
 
 
-class LiteralInput(BasicIO, BasicLiteral, SimpleHandler):
+class LiteralInput(BasicIO, BasicLiteral, LiteralHandler):
     """LiteralInput input abstract class
     """
 
@@ -472,16 +801,19 @@ class LiteralInput(BasicIO, BasicLiteral, SimpleHandler):
                  min_occurs=1, max_occurs=1, metadata=[],
                  default=None, default_type=SOURCE_TYPE.DATA):
         BasicIO.__init__(self, identifier, title, abstract, keywords,
-                         min_occurs=1, max_occurs=1, metadata=[])
-        BasicLiteral.__init__(self, data_type, uoms)
-        SimpleHandler.__init__(self, workdir, data_type, mode=mode)
+                         min_occurs=min_occurs, max_occurs=max_occurs, metadata=metadata)
+        BasicLiteral.__init__(self, uoms)
+        LiteralHandler.__init__(self, workdir, data_type, mode=mode)
+
+        if default_type != SOURCE_TYPE.DATA:
+            raise InvalidParameterValue("Source types other than data are not supported.")
 
         self.any_value = is_anyvalue(allowed_values)
         self.allowed_values = []
         if not self.any_value:
             self.allowed_values = make_allowedvalues(allowed_values)
 
-        self._set_default_value(default, default_type)
+        self.data = default
 
     @property
     def validator(self):
@@ -520,7 +852,7 @@ class LiteralInput(BasicIO, BasicLiteral, SimpleHandler):
         return data
 
 
-class LiteralOutput(BasicIO, BasicLiteral, SimpleHandler):
+class LiteralOutput(BasicIO, BasicLiteral, LiteralHandler):
     """Basic LiteralOutput class
     """
 
@@ -528,8 +860,8 @@ class LiteralOutput(BasicIO, BasicLiteral, SimpleHandler):
                  data_type=None, workdir=None, uoms=None, validate=None,
                  mode=MODE.NONE):
         BasicIO.__init__(self, identifier, title, abstract, keywords)
-        BasicLiteral.__init__(self, data_type, uoms)
-        SimpleHandler.__init__(self, workdir=None, data_type=data_type,
+        BasicLiteral.__init__(self, uoms)
+        LiteralHandler.__init__(self, workdir=workdir, data_type=data_type,
                                mode=mode)
 
         self._storage = None
@@ -550,7 +882,7 @@ class LiteralOutput(BasicIO, BasicLiteral, SimpleHandler):
         return validate_anyvalue
 
 
-class BBoxInput(BasicIO, BasicBoundingBox, IOHandler):
+class BBoxInput(BasicIO, BasicBoundingBox, DataHandler):
     """Basic Bounding box input abstract class
     """
 
@@ -562,9 +894,13 @@ class BBoxInput(BasicIO, BasicBoundingBox, IOHandler):
         BasicIO.__init__(self, identifier, title, abstract, keywords,
                          min_occurs, max_occurs, metadata)
         BasicBoundingBox.__init__(self, crss, dimensions)
-        IOHandler.__init__(self, workdir=None, mode=mode)
+        DataHandler.__init__(self, workdir=workdir, mode=mode)
 
-        self._set_default_value(default, default_type)
+        if default_type != SOURCE_TYPE.DATA:
+            raise InvalidParameterValue("Source types other than data are not supported.")
+
+
+        self.default = default
 
     @property
     def json(self):
@@ -598,7 +934,7 @@ class BBoxInput(BasicIO, BasicBoundingBox, IOHandler):
         }
 
 
-class BBoxOutput(BasicIO, BasicBoundingBox, SimpleHandler):
+class BBoxOutput(BasicIO, BasicBoundingBox, DataHandler):
     """Basic BoundingBox output class
     """
 
@@ -606,7 +942,7 @@ class BBoxOutput(BasicIO, BasicBoundingBox, SimpleHandler):
                  dimensions=None, workdir=None, mode=MODE.NONE):
         BasicIO.__init__(self, identifier, title, abstract, keywords)
         BasicBoundingBox.__init__(self, crss, dimensions)
-        SimpleHandler.__init__(self, workdir=None, mode=mode)
+        DataHandler.__init__(self, workdir=None, mode=mode)
         self._storage = None
 
     @property
@@ -638,7 +974,8 @@ class ComplexInput(BasicIO, BasicComplex, IOHandler):
         IOHandler.__init__(self, workdir=workdir, mode=mode)
         BasicComplex.__init__(self, data_format, supported_formats)
 
-        self._set_default_value(default, default_type)
+        if default is not None:
+            self.data = default
 
     @property
     def json(self):
@@ -660,7 +997,7 @@ class ComplexInput(BasicIO, BasicComplex, IOHandler):
         }
 
 
-class ComplexOutput(BasicIO, BasicComplex, IOHandler):
+class ComplexOutput(BasicIO, BasicComplex, UrlHandler):
     """Complex output abstract class
 
     >>> # temporary configuration
@@ -692,7 +1029,7 @@ class ComplexOutput(BasicIO, BasicComplex, IOHandler):
                  workdir=None, data_format=None, supported_formats=None,
                  mode=MODE.NONE):
         BasicIO.__init__(self, identifier, title, abstract, keywords)
-        IOHandler.__init__(self, workdir=workdir, mode=mode)
+        FileHandler.__init__(self, workdir=workdir, mode=mode)
         BasicComplex.__init__(self, data_format, supported_formats)
 
         self._storage = None
@@ -711,6 +1048,12 @@ class ComplexOutput(BasicIO, BasicComplex, IOHandler):
         (outtype, storage, url) = self.storage.store(self)
         return url
 
+
+def extend_instance(obj, cls):
+    """Apply mixins to a class instance after creation"""
+    base_cls = obj.__class__
+    base_cls_name = obj.__class__.__name__
+    obj.__class__ = type(base_cls_name, (cls, base_cls),{}) # (cls, base_cls) to override.
 
 if __name__ == "__main__":
     import doctest

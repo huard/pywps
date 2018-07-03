@@ -12,7 +12,7 @@ import unittest
 from pywps import Format
 from pywps.validator import get_validator
 from pywps import NAMESPACES
-from pywps.inout.basic import IOHandler, SOURCE_TYPE, SimpleHandler, BBoxInput, BBoxOutput, \
+from pywps.inout.basic import IOHandler, SOURCE_TYPE, LiteralHandler, BBoxInput, BBoxOutput, \
     ComplexInput, ComplexOutput, LiteralOutput, LiteralInput, _is_textfile
 from pywps.inout import BoundingBoxInput as BoundingBoxInputXML
 from pywps.inout.literaltypes import convert, AllowedValue
@@ -35,8 +35,8 @@ class IOHandlerTest(unittest.TestCase):
     """IOHandler test cases"""
 
     def setUp(self):
-        tmp_dir = tempfile.mkdtemp()
-        self.iohandler = IOHandler(workdir=tmp_dir)
+        self.tmp_dir = tempfile.mkdtemp()
+        self.iohandler = IOHandler(workdir=self.tmp_dir)
         self._value = 'lalala'
 
     def tearDown(self):
@@ -93,18 +93,21 @@ class IOHandlerTest(unittest.TestCase):
 
     def test_data(self):
         """Test data input IOHandler"""
+        self.iohandler = IOHandler(workdir=self.tmp_dir)
         self.iohandler.data = self._value
         self.iohandler.data_format = Format('foo', extension='.foo')
         self._test_outout(SOURCE_TYPE.DATA, '.foo')
 
     def test_stream(self):
         """Test stream input IOHandler"""
+        self.iohandler = IOHandler(workdir=self.tmp_dir)
         source = StringIO(text_type(self._value))
         self.iohandler.stream = source
         self._test_outout(SOURCE_TYPE.STREAM)
 
     def test_file(self):
         """Test file input IOHandler"""
+        self.iohandler = IOHandler(workdir=self.tmp_dir)
         (fd, tmp_file) = tempfile.mkstemp()
         source = tmp_file
         file_handler = open(tmp_file, 'w')
@@ -129,6 +132,7 @@ class IOHandlerTest(unittest.TestCase):
         self.skipTest('Memory object not implemented')
 
     def test_data_bytes(self):
+        self.iohandler = IOHandler(workdir=self.tmp_dir)
         self._value = b'aa'
 
         self.iohandler.data = self._value
@@ -240,13 +244,13 @@ class SimpleHandlerTest(unittest.TestCase):
 
         data_type = 'integer'
 
-        self.simple_handler = SimpleHandler(data_type=data_type)
+        self.literal_handler = LiteralHandler(data_type=data_type)
 
     def test_contruct(self):
-        self.assertIsInstance(self.simple_handler, SimpleHandler)
+        self.assertIsInstance(self.literal_handler, LiteralHandler)
 
     def test_data_type(self):
-        self.assertEqual(convert(self.simple_handler.data_type, '1'), 1)
+        self.assertEqual(convert(self.literal_handler.data_type, '1'), 1)
 
 class LiteralInputTest(unittest.TestCase):
     """LiteralInput test cases"""

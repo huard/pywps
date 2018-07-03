@@ -149,7 +149,7 @@ def get_converter(convertor):
 
     return decorator_selector
 
-
+# I don't see the interest of this decorator. Why not put the decorator's logic in the convert function?
 @get_converter
 def convert(data_type, data):
     """Convert data to target value

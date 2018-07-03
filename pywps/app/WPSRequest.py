@@ -12,7 +12,7 @@ import base64
 import datetime
 from pywps._compat import text_type, PY2
 from pywps.app.basic import get_xpath_ns
-from pywps.inout.basic import LiteralInput, ComplexInput, BBoxInput
+from pywps.inout.basic import LiteralInput, ComplexInput, BBoxInput, SOURCE_TYPE
 from pywps.exceptions import NoApplicableCode, OperationNotSupported, MissingParameterValue, VersionNegotiationFailed, \
     InvalidParameterValue, FileSizeExceeded
 from pywps import configuration
@@ -382,7 +382,7 @@ class WPSRequest(object):
                                 encoding=infrmt.get('encoding')
                             ) for infrmt in inpt_def['supported_formats']
                         ],
-                        mode=MODE.NONE
+                        mode=MODE.NONE,
                     )
                     inpt.file = inpt_def['file']
                 elif inpt_def['type'] == 'literal':

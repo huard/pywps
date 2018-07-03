@@ -228,7 +228,7 @@ class Service(object):
             except Exception as e:
                 raise NoApplicableCode(e)
 
-            complexinput.file = tmp_file
+            #complexinput.file = tmp_file
             complexinput.url = datain.get('href')
             complexinput.as_reference = True
 
@@ -254,7 +254,7 @@ class Service(object):
                 shutil.copy2(inpt_file, tmp_file)
 
             complexinput.file = tmp_file
-            complexinput.url = datain.get('href')
+            #complexinput.url = datain.get('href')
             complexinput.as_reference = True
 
         def data_handler(complexinput, datain):
