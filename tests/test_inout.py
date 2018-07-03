@@ -66,7 +66,8 @@ class IOHandlerTest(unittest.TestCase):
         file_path = self.iohandler.file
         self.assertTrue(file_path.endswith(suffix))
         file_handler = open(file_path)
-        self.assertEqual(self._value, file_handler.read(), 'File obtained')
+        content = file_handler.read()
+        self.assertEqual(self._value, content, 'File obtained')
         file_handler.close()
 
         if self.iohandler.source_type == SOURCE_TYPE.STREAM:
@@ -103,6 +104,7 @@ class IOHandlerTest(unittest.TestCase):
         self.iohandler = IOHandler(workdir=self.tmp_dir)
         source = StringIO(text_type(self._value))
         self.iohandler.stream = source
+        self.assertEqual(self.iohandler.data, self._value)
         self._test_outout(SOURCE_TYPE.STREAM)
 
     def test_file(self):

@@ -299,8 +299,24 @@ class IOHandlerOld(object):
 
 
 class IOHandler(object):
-    """Basic IO class. Provides functions, to accept input data in file,
-    memory object and stream object and give them out in all three types
+    """Base IO handling class subclassed by specialized versions: FileHandler, UrlHandler, DataHandler, etc.
+
+    If the specialized handling class is not know when the object is created, instantiate the object with IOHandler.
+    The first time the `file`, `url` or `data` attribute is set, the associated subclass will be automatically
+    registered. Once set, the specialized subclass cannot be unset.
+
+    Properties
+    ----------
+    `file` : str
+      Filename
+    `url` : str
+      Link to a resource.
+    `data` : object
+      A native python object (integer, string, float, etc)
+    `stream` : FileIO
+      A readable object.
+
+
 
     :param workdir: working directory, to save temporal file objects in
     :param mode: ``MODE`` validation mode
@@ -341,15 +357,16 @@ class IOHandler(object):
     >>> assert open(file).read() == ioh_file.stream.read()
     >>> assert isinstance(stream, RawIOBase)
     """
+    prop = None
 
     def __init__(self, workdir=None, mode=MODE.NONE):
         self.workdir = workdir
         self.valid_mode = mode
 
-        self._tempfile = None
+        self._filename = None
+        self._data = None
         self.uuid = None  # request identifier
         self.data_set = False
-
         self._create_fset_properties()
 
     def _check_valid(self):
@@ -361,7 +378,7 @@ class IOHandler(object):
         if not _valid:
             self.data_set = False
             raise InvalidParameterValue('Input data not valid using '
-                                        'mode %s' % (self.valid_mode))
+                                        'mode %s'.format(self.valid_mode))
         self.data_set = True
 
     @property
@@ -389,9 +406,12 @@ class IOHandler(object):
 
     @property
     def source_type(self):
+        """Return the source type."""
+        # For backward compatibility only. source_type checks could be replaced by `isintance`.
         return getattr(SOURCE_TYPE, self.prop.upper())
 
     def _extension(self):
+        """Return the file extension for the data format, if set."""
         extension = None
         if getattr(self, 'data_format', None):
             extension = self.data_format.extension
@@ -409,6 +429,8 @@ class IOHandler(object):
         >>> h.data = 1 # Mixes the DataHandler class to IOHandler. h inherits DataHandler methods.
         >>> isinstance(h, DataHandler)
         True
+
+        Note that trying to set another attribute (e.g. `h.file = 'a.txt'`) will raise an AttributeError.
         """
         for cls in (FileHandler, DataHandler, StreamHandler, UrlHandler):
             def fget(self):
@@ -440,14 +462,17 @@ class FileHandler(IOHandler):
     @file.setter
     def file(self, value):
         """Set file name"""
+        self._data = None
         self._filename = os.path.abspath(value)
         self._check_valid()
 
     @property
     def data(self):
         """Read file and return content."""
-        with open(self._filename, mode=self._openmode()) as fh:
-            return fh.read()
+        if self._data is None:
+            with open(self._filename, mode=self._openmode()) as fh:
+                self._data = fh.read()
+        return self._data
 
     @property
     def base64(self):
@@ -474,19 +499,6 @@ class FileHandler(IOHandler):
         """Return url to file."""
         import pathlib
         return pathlib.PurePosixPath(self._filename).as_uri()
-
-    # @property
-    # def default(self):
-    #     try:
-    #         return getattr(self. self.prop)
-    #     except AttributeError:
-    #         return None
-    #
-    # @default.setter
-    # def default(self, value):
-    #     if value is not None:
-    #         setattr(self, self.prop, value)
-
 
     def _openmode(self):
         openmode = 'r'
@@ -554,10 +566,6 @@ class UrlHandler(FileHandler):
     def data(self):
         return self.stream.read()
 
-    @property
-    def file(self):
-        return self._filename
-
     @staticmethod
     def _build_input_file_name(href, workdir, extension=None):
         href = href or ''
@@ -602,9 +610,7 @@ class DataHandler(FileHandler):
 
     def _mkstemp(self):
         """Return temporary file name."""
-        suffix = ''
-        if hasattr(self, 'data_format') and self.data_format.extension:
-            suffix = self.data_format.extension
+        suffix = self._extension() or ''
         (opening, fn) = tempfile.mkstemp(dir=self.workdir, suffix=suffix)
         return fn
 
@@ -633,16 +639,12 @@ class DataHandler(FileHandler):
 
         Requesting the file attributes writes the data to a temporary file on disk.
         """
-        if self._tempfile:
-            return self._tempfile
-        else:
-            fn = self._mkstemp()
-            data = self.data
-            with open(fn, self._openmode(data)) as fh:
-                fh.write(data)
+        if self._filename is None:
+            self._filename = self._mkstemp()
+            with open(self._filename, self._openmode(self.data)) as fh:
+                fh.write(self.data)
 
-            self._tempfile = str(fn)
-            return self._tempfile
+        return self._filename
 
     @property
     def stream(self):
@@ -656,7 +658,7 @@ class DataHandler(FileHandler):
         import pathlib
         return pathlib.PurePosixPath(self.file).as_uri()
 
-
+# Useful ?
 class Base64Handler(DataHandler):
     prop = 'base64'
 
@@ -680,6 +682,7 @@ class StreamHandler(DataHandler):
     @property
     def stream(self):
         """Return the stream."""
+        self._data = None
         return self._stream
 
     @stream.setter
@@ -691,9 +694,9 @@ class StreamHandler(DataHandler):
     @property
     def data(self):
         """Return the data from the stream."""
-        return self.stream.read()
-
-
+        if self._data is None:
+            self._data = self.stream.read()
+        return self._data
 
 
 class LiteralHandler(DataHandler):
