@@ -3,7 +3,6 @@
 # licensed under MIT, Please consult LICENSE.txt for details     #
 ##################################################################
 
-from pywps import configuration
 from pywps.inout import basic
 from copy import deepcopy
 from pywps.validator.mode import MODE
@@ -68,7 +67,7 @@ class ComplexInput(basic.ComplexInput):
     def __init__(self, identifier, title, supported_formats,
                  data_format=None, abstract='', keywords=[], metadata=[], min_occurs=1,
                  max_occurs=1, mode=MODE.NONE,
-                 default=None, default_type=basic.SOURCE_TYPE.DATA):
+                 default=None):
         """constructor"""
 
         basic.ComplexInput.__init__(self, identifier, title=title,
@@ -77,21 +76,11 @@ class ComplexInput(basic.ComplexInput):
                                     keywords=keywords, metadata=metadata,
                                     min_occurs=min_occurs,
                                     max_occurs=max_occurs, mode=mode,
-                                    default=default, default_type=default_type)
+                                    default=default)
 
         self.as_reference = False
         self.method = ''
         self.max_size = int(0)
-
-    def calculate_max_input_size(self):
-        """Calculates maximal size for input file based on configuration
-        and units
-
-        :return: maximum file size bytes
-        """
-        max_size = configuration.get_config_value(
-            'server', 'maxsingleinputsize')
-        self.max_size = configuration.get_size_mb(max_size)
 
     def clone(self):
         """Create copy of yourself
@@ -120,7 +109,7 @@ class LiteralInput(basic.LiteralInput):
                  metadata=[], uoms=None,
                  min_occurs=1, max_occurs=1,
                  mode=MODE.SIMPLE, allowed_values=AnyValue,
-                 default=None, default_type=basic.SOURCE_TYPE.DATA):
+                 default=None):
 
         """Constructor
         """
@@ -131,7 +120,7 @@ class LiteralInput(basic.LiteralInput):
                                     uoms=uoms, min_occurs=min_occurs,
                                     max_occurs=max_occurs, mode=mode,
                                     allowed_values=allowed_values,
-                                    default=default, default_type=default_type)
+                                    default=default)
 
         self.as_reference = False
 

@@ -119,9 +119,13 @@ class IOHandlerTest(unittest.TestCase):
         self._test_outout(SOURCE_TYPE.FILE)
 
     def test_url(self):
-        wfsResource = 'http://demo.mapserver.org/cgi-bin/wfs?service=WFS&version=1.1.0&request=GetFeature&typename=continents&maxfeatures=10'  # noqa
+        import requests
+        wfsResource = 'http://demo.mapserver.org/cgi-bin/wfs?service=WFS&version=1.1.0&request=GetFeature&typename=continents&maxfeatures=2'
+        self._value = requests.get(wfsResource).content
         self.iohandler = IOHandler(workdir=self.tmp_dir)
         self.iohandler.url = wfsResource
+        self._test_outout(SOURCE_TYPE.URL)
+
 
 
 
