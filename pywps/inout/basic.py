@@ -511,7 +511,7 @@ class IOHandler(object):
                 # Set the attribute value through the associated cls property.
                 setattr(s, kls.prop, value)
 
-            setattr(IOHandler, cls.prop, property(fget=lambda x:None, fset=fset))
+            setattr(IOHandler, cls.prop, property(fget=lambda x: None, fset=fset))
 
 
 class FileHandler(IOHandler):
@@ -737,7 +737,7 @@ class UrlHandler(FileHandler):
 
         FSEE = FileSizeExceeded(
             'File size for input {} exceeded. Maximum allowed: {} megabytes'.
-                format(getattr(self.inpt, 'identifier', '?'), max_byte_size))
+            format(getattr(self.inpt, 'identifier', '?'), max_byte_size))
 
         if int(data_size) > int(max_byte_size):
             raise FSEE
@@ -783,7 +783,7 @@ class UrlHandler(FileHandler):
         :return: maximum file size in bytes
         """
         ms = config.get_config_value('server', 'maxsingleinputsize')
-        return config.get_size_mb(ms) * 1024 **2
+        return config.get_size_mb(ms) * 1024**2
 
 
 class LiteralHandler(DataHandler):
