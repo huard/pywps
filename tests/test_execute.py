@@ -161,7 +161,7 @@ class ExecuteTest(unittest.TestCase):
 
 
         resp = service.execute('my_opendap_process', request, 'fakeuuid')
-        self.assertEqual(resp.response[0], u'CF-1.0')
+        self.assertEqual(resp.outputs['conventions'].data, u'CF-1.0')
 
 
     def test_input_parser(self):
