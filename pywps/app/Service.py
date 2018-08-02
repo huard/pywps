@@ -174,6 +174,7 @@ class Service(object):
                 workdir=complexinput.workdir,
                 extension=_extension(complexinput))
 
+            reference_file = _openurl(datain)
             try:
                 reference_file = _openurl(datain)
                 data_size = reference_file.headers.get('Content-Length', 0)
@@ -193,20 +194,26 @@ class Service(object):
                                        ' Maximum allowed: %i megabytes' %
                                        complexinput.max_size, complexinput.identifier)
 
-            try:
-                with open(tmp_file, 'wb') as f:
-                    data_size = 0
-                    for chunk in reference_file.iter_content(chunk_size=1024):
-                        data_size += len(chunk)
-                        if int(data_size) > int(max_byte_size):
-                            raise FileSizeExceeded('File size for input exceeded.'
-                                                   ' Maximum allowed: %i megabytes' %
-                                                   complexinput.max_size, complexinput.identifier)
-                        f.write(chunk)
-            except Exception as e:
-                raise NoApplicableCode(e)
+            if complexinput.data_format.mime_type in ['application/x-ogc-dods',]:
+                # Skip the download
+                complexinput.data = datain.get('href')
 
-            complexinput.file = tmp_file
+            else:
+                try:
+                    with open(tmp_file, 'wb') as f:
+                        data_size = 0
+                        for chunk in reference_file.iter_content(chunk_size=1024):
+                            data_size += len(chunk)
+                            if int(data_size) > int(max_byte_size):
+                                raise FileSizeExceeded('File size for input exceeded.'
+                                                       ' Maximum allowed: %i megabytes' %
+                                                       complexinput.max_size, complexinput.identifier)
+                            f.write(chunk)
+                except Exception as e:
+                    raise NoApplicableCode(e)
+
+                complexinput.file = tmp_file
+
             complexinput.url = datain.get('href')
             complexinput.as_reference = True
 

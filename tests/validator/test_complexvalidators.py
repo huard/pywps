@@ -20,6 +20,13 @@ except ImportError:
 else:
     WITH_GDAL = True
 
+try:
+    import netCDF4
+except ImportError:
+    WITH_NC4 = False
+else:
+    WITH_NC4 = True
+
 def get_input(name, schema, mime_type):
 
     class FakeFormat(object):
@@ -103,9 +110,20 @@ class ValidateTest(unittest.TestCase):
         self.assertTrue(validategeotiff(geotiff_input, MODE.NONE), 'NONE validation')
         self.assertTrue(validategeotiff(geotiff_input, MODE.SIMPLE), 'SIMPLE validation')
         if not WITH_GDAL:
-            self.testSkipp('GDAL Not Installed')
+            self.testSkipp('GDAL not Installed')
         self.assertTrue(validategeotiff(geotiff_input, MODE.STRICT), 'STRICT validation')
         geotiff_input.stream.close()
+
+    def test_netcdf_validator(self):
+        """Test netCDF validator
+        """
+        netcdf_input = get_input('netcdf/time.nc', None, FORMATS.NETCDF.mime_type)
+        self.assertTrue(validatenetcdf(netcdf_input, MODE.NONE), 'NONE validation')
+        self.assertTrue(validatenetcdf(netcdf_input, MODE.SIMPLE), 'SIMPLE validation')
+        if not WITH_NC4:
+            self.testSkipp('netCDF4 not Installed')
+        self.assertTrue(validatenetcdf(netcdf_input, MODE.STRICT), 'STRICT validation')
+        netcdf_input.stream.close()
 
     def test_fail_validator(self):
         fake_input = get_input('point.xsd', 'point.xsd', FORMATS.SHP.mime_type)

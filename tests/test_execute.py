@@ -12,6 +12,7 @@ from pywps import Service, Process, LiteralOutput, LiteralInput,\
     BoundingBoxOutput, BoundingBoxInput, Format, ComplexInput, ComplexOutput
 from pywps.validator.base import emptyvalidator
 from pywps.validator.complexvalidator import validategml
+from pywps.validator.mode import MODE
 from pywps.exceptions import InvalidParameterValue
 from pywps import get_inputs_from_xml, get_output_from_xml
 from pywps import E, get_ElementMakerForVersion
@@ -96,6 +97,33 @@ def create_complex_proces():
              ])
 
 
+def create_complex_nc_process():
+    def complex_proces(request, response):
+        from pywps.dependencies import netCDF4 as nc
+        url = request.inputs['dods'][0].data
+        with nc.Dataset(url) as D:
+            response.outputs['conventions'].data = D.Conventions
+
+        return response
+
+    return Process(handler=complex_proces,
+            identifier='my_opendap_process',
+            title='Opendap process',
+            inputs=[
+                ComplexInput(
+                    'dods',
+                    'Opendap input',
+                    supported_formats=[Format('DODS'), Format('NETCDF'),],
+                 #   mode=MODE.STRICT
+                )
+            ],
+            outputs=[
+                LiteralOutput(
+                    'conventions',
+                    'NetCDF convention',
+                    )
+             ])
+
 def get_output(doc):
     output = {}
     for output_el in xpath_ns(doc, '/wps:ExecuteResponse'
@@ -108,6 +136,33 @@ def get_output(doc):
 
 class ExecuteTest(unittest.TestCase):
     """Test for Exeucte request KVP request"""
+
+    def test_dods_input(self):
+        my_process = create_complex_nc_process()
+        service = Service(processes=[my_process])
+
+        class FakeRequest():
+            identifier = 'my_opendap_process'
+            service='wps'
+            operation='execute'
+            version='1.0.0'
+            raw=True
+            inputs = {'dods': [{
+                    'identifier': 'dods',
+                    #'mimeType': 'application/x-ogc-dods',
+                    'href': "http://test.opendap.org:80/opendap/netcdf/examples/sresa1b_ncar_ccsm3_0_run1_200001.nc",
+                    'as_reference':True,
+                }]}
+            store_execute = False
+            lineage=False
+            outputs = ['conventions']
+
+        request = FakeRequest()
+
+
+        resp = service.execute('my_opendap_process', request, 'fakeuuid')
+        self.assertEqual(resp.response[0], u'CF-1.0')
+
 
     def test_input_parser(self):
         """Test input parsing
