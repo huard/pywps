@@ -194,7 +194,7 @@ class Service(object):
                                        ' Maximum allowed: %i megabytes' %
                                        complexinput.max_size, complexinput.identifier)
 
-            if complexinput.data_format.mime_type in ['application/x-ogc-dods',]:
+            if complexinput.data_format.mime_type in ['application/x-ogc-dods', ]:
                 # Skip the download
                 complexinput.data = datain.get('href')
 
