@@ -104,6 +104,7 @@ def create_complex_nc_process():
         with nc.Dataset(url) as D:
             response.outputs['conventions'].data = D.Conventions
 
+        response.outputs['outdods'].url = url
         return response
 
     return Process(handler=complex_proces,
@@ -121,7 +122,10 @@ def create_complex_nc_process():
                 LiteralOutput(
                     'conventions',
                     'NetCDF convention',
-                    )
+                    ),
+                ComplexOutput('outdods', 'Opendap output',
+                              supported_formats=[Format('DODS'), Format('NETCDF'), ],
+                              as_reference=True)
              ])
 
 def get_output(doc):
@@ -137,9 +141,10 @@ def get_output(doc):
 class ExecuteTest(unittest.TestCase):
     """Test for Exeucte request KVP request"""
 
-    def test_dods_input(self):
+    def test_dods(self):
         my_process = create_complex_nc_process()
         service = Service(processes=[my_process])
+        href = "http://test.opendap.org:80/opendap/netcdf/examples/sresa1b_ncar_ccsm3_0_run1_200001.nc"
 
         class FakeRequest():
             identifier = 'my_opendap_process'
@@ -149,7 +154,7 @@ class ExecuteTest(unittest.TestCase):
             raw=True
             inputs = {'dods': [{
                     'identifier': 'dods',
-                    'href': "http://test.opendap.org:80/opendap/netcdf/examples/sresa1b_ncar_ccsm3_0_run1_200001.nc",
+                    'href': href,
                 }]}
             store_execute = False
             lineage=False
@@ -159,6 +164,7 @@ class ExecuteTest(unittest.TestCase):
 
         resp = service.execute('my_opendap_process', request, 'fakeuuid')
         self.assertEqual(resp.outputs['conventions'].data, u'CF-1.0')
+        self.assertEqual(resp.outputs['outdods'].url, href)
 
 
     def test_input_parser(self):
