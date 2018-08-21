@@ -21,7 +21,7 @@ _VALIDATORS = {
     'application/gml+xml': validategml,
     'image/tiff; subtype=geotiff': validategeotiff,
     'application/x-netcdf': validatenetcdf,
-    'application/x-ogc-dods':validatenetcdf,
+    'application/x-ogc-dods': validatenetcdf,
     'application/xogc-wcs': emptyvalidator,
     'application/x-ogc-wcs; version=1.0.0': emptyvalidator,
     'application/x-ogc-wcs; version=1.1.0': emptyvalidator,

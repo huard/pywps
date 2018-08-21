@@ -15,8 +15,8 @@ from pywps.validator.complexvalidator import validategml
 from pywps.validator.mode import MODE
 from pywps.exceptions import InvalidParameterValue
 from pywps import get_inputs_from_xml, get_output_from_xml
-from pywps import E, WPS, OWS
-from pywps.app.basic import xpath_ns
+from pywps import E, get_ElementMakerForVersion
+from pywps.app.basic import get_xpath_ns
 from pywps._compat import text_type
 from pywps.tests import client_for, assert_response_success
 
@@ -25,6 +25,11 @@ from pywps._compat import StringIO
 if PY2:
     from owslib.ows import BoundingBox
 
+VERSION = "1.0.0"
+
+WPS, OWS = get_ElementMakerForVersion(VERSION)
+
+xpath_ns = get_xpath_ns(VERSION)
 
 def create_ultimate_question():
     def handler(request, response):
@@ -154,7 +159,7 @@ class ExecuteTest(unittest.TestCase):
 
 
         resp = service.execute('my_opendap_process', request, 'fakeuuid')
-        self.assertEqual(resp.response[0], u'CF-1.0')
+        self.assertEqual(resp.outputs['conventions'].data, u'CF-1.0')
 
 
     def test_input_parser(self):
@@ -253,6 +258,7 @@ class ExecuteTest(unittest.TestCase):
             OWS.Identifier('ultimate_question'),
             version='1.0.0'
         )
+
         resp = client.post_xml(doc=request_doc)
         assert_response_success(resp)
         assert get_output(resp.xml) == {'outvalue': '42'}
@@ -274,8 +280,7 @@ class ExecuteTest(unittest.TestCase):
         assert get_output(resp.xml) == {'message': "Hello foo!"}
 
     def test_bbox(self):
-        if not PY2:
-            self.skipTest('OWSlib not python 3 compatible')
+        self.skipTest('OWSlib not python 3 compatible')
         client = client_for(Service(processes=[create_bbox_process()]))
         request_doc = WPS.Execute(
             OWS.Identifier('my_bbox_process'),
@@ -298,7 +303,12 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual('outbbox', xpath_ns(
             output,
             './ows:Identifier')[0].text)
+
         self.assertEqual('15 50', xpath_ns(
+            output,
+            './wps:Data/ows:BoundingBox/ows:LowerCorner')[0].text)
+
+        self.assertEqual('16 50', xpath_ns(
             output,
             './wps:Data/ows:BoundingBox/ows:LowerCorner')[0].text)
 
