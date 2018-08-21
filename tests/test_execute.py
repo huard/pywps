@@ -100,7 +100,7 @@ def create_complex_proces():
 def create_complex_nc_process():
     def complex_proces(request, response):
         from pywps.dependencies import netCDF4 as nc
-        url = request.inputs['dods'][0].data
+        url = request.inputs['dods'][0].url
         with nc.Dataset(url) as D:
             response.outputs['conventions'].data = D.Conventions
 
@@ -156,7 +156,6 @@ class ExecuteTest(unittest.TestCase):
             outputs = ['conventions']
 
         request = FakeRequest()
-
 
         resp = service.execute('my_opendap_process', request, 'fakeuuid')
         self.assertEqual(resp.outputs['conventions'].data, u'CF-1.0')
