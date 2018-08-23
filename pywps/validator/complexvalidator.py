@@ -255,6 +255,32 @@ def validatenetcdf(data_input, mode):
 
     return passed
 
+def validatedods(data_input, mode):
+    """OPEnDAP validation.
+        """
+
+    LOGGER.info('Validating OPEnDAP; Mode: %s', mode)
+    passed = False
+
+    if mode >= MODE.NONE:
+        passed = True
+
+    if mode >= MODE.SIMPLE:
+        name = data_input.url
+        (mtype, encoding) = mimetypes.guess_type(name, strict=False)
+        passed = data_input.data_format.mime_type in {mtype, FORMATS.NETCDF.mime_type}
+
+    if mode >= MODE.STRICT:
+
+        try:
+            from pywps.dependencies import netCDF4 as nc
+            nc.Dataset(data_input.url)
+            passed = True
+        except ImportError:
+            passed = False
+
+    return passed
+
 
 def _get_schemas_home():
     """Get path to schemas directory
