@@ -256,10 +256,10 @@ def validatenetcdf(data_input, mode):
     return passed
 
 def validatedods(data_input, mode):
-    """OPEnDAP validation.
+    """OPeNDAP validation.
         """
 
-    LOGGER.info('Validating OPEnDAP; Mode: %s', mode)
+    LOGGER.info('Validating OPeNDAP; Mode: %s', mode)
     passed = False
 
     if mode >= MODE.NONE:
@@ -268,7 +268,7 @@ def validatedods(data_input, mode):
     if mode >= MODE.SIMPLE:
         name = data_input.url
         (mtype, encoding) = mimetypes.guess_type(name, strict=False)
-        passed = data_input.data_format.mime_type in {mtype, FORMATS.NETCDF.mime_type}
+        passed = data_input.data_format.mime_type in {mtype, FORMATS.DODS.mime_type}
 
     if mode >= MODE.STRICT:
 
