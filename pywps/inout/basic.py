@@ -18,8 +18,8 @@ from pywps.validator.base import emptyvalidator
 from pywps.validator import get_validator
 from pywps.validator.literalvalidator import (validate_anyvalue,
                                               validate_allowed_values)
-from pywps.exceptions import MissingParameterValue, NoApplicableCode, InvalidParameterValue, FileSizeExceeded, \
-    StorageNotSupported, FileURLNotSupported
+from pywps.exceptions import NoApplicableCode, InvalidParameterValue, FileSizeExceeded, \
+    FileURLNotSupported
 from pywps._compat import PY2, urlparse
 import base64
 from collections import namedtuple
@@ -78,8 +78,7 @@ class IOHandler(object):
     :param workdir: working directory, to save temporal file objects in.
     :param mode: ``MODE`` validation mode.
 
-    Properties
-    ----------
+
     `file` : str
       Filename on the local disk.
     `url` : str
@@ -91,9 +90,6 @@ class IOHandler(object):
     `base64` : str
       A base 64 encoding of the data.
 
-
-    Example
-    -------
     >>> # setting up
     >>> import os
     >>> from io import RawIOBase
